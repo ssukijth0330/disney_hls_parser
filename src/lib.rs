@@ -6,7 +6,6 @@
 //! [spec]: https://datatracker.ietf.org/doc/html/rfc8216#section-4
 //! [wiki]: https://en.wikipedia.org/wiki/HTTP_Live_Streaming
 
-
 //include the media_playlist.rs file
 mod media_playlist;
 

@@ -1,8 +1,8 @@
 // //! Utilites for parsing media playlists (i.e. not master playlists).
 #![allow(unused)]
 
-use core::time::Duration;
 use anyhow::{anyhow, Result};
+use core::time::Duration;
 use std::num::ParseIntError;
 
 /// Storage for HLS Media Playlist data. Can be constructed from `ext-m3u` data using
@@ -29,9 +29,9 @@ pub struct MediaPlaylist {
     /// <https://datatracker.ietf.org/doc/html/rfc8216#section-4.3.1.2>.
     version: u64,
 
-    // The video segment between the discontinuity tag 
-    // [ [[Duration, string], [Duration, string], [Duration, string]...],  
-    //   [[Duration, string], [Duration, string], [Duration, string],...], 
+    // The video segment between the discontinuity tag
+    // [ [[Duration, string], [Duration, string], [Duration, string]...],
+    //   [[Duration, string], [Duration, string], [Duration, string],...],
     //   [[Duration, string], [Duration, string], [Duration, string],...]
     //  ]
     discontinuity: Vec<DiscontinuitySegment>,
@@ -67,12 +67,10 @@ pub struct DiscontinuitySegment {
     discontinuity_segments: Vec<MediaSegment>,
 }
 
-
 impl MediaPlaylist {
     // Parses the given file into a [`MediaPlaylist`], returning an error if the file does not
     // adhere to the specification.
     pub fn parse_ext_m3u(_file: &str) -> Result<Self> {
-
         //*** Variables for MedisPlaylist Structure ***/
         //set the ended to false
         let mut ended = false;
@@ -105,9 +103,9 @@ impl MediaPlaylist {
         let mut duration_seg = Duration::from_secs_f32(0.000);
 
         // Set Variable to store the duration of the discontinuity segment:
-        // I need this variable to be on milliseconds because 
+        // I need this variable to be on milliseconds because
         // it will be used for arithmetic operation (sums).
-        // The issue with using 'from_secs_f32()' arises when performing summation, 
+        // The issue with using 'from_secs_f32()' arises when performing summation,
         // as it may introdure extra digit in nanosecconds
         // potentially causing failure in 'assert_eq!()' statement within the test suite.
         // Ref: https://doc.rust-lang.org/core/time/struct.Duration.html
@@ -119,34 +117,46 @@ impl MediaPlaylist {
         // start segment index to clone the segments from prious discontinuity tag
         let mut start_discontinuity_segment = 0;
 
-        fn u64_from_string (s: &str) -> Result<u64, String> {
+        fn u64_from_string(s: &str) -> Result<u64, String> {
             let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
             match digits.parse::<u64>() {
                 Ok(value) => Ok(value),
-                Err(_) => Err(String::from("Error: the string contains non-numeric characters")),
+                Err(_) => Err(String::from(
+                    "Error: the string contains non-numeric characters",
+                )),
             }
-        }        
+        }
 
-        fn f32_from_string (s: &str) -> Result<f32, String> {
-            let digits: String = s.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
+        fn f32_from_string(s: &str) -> Result<f32, String> {
+            let digits: String = s
+                .chars()
+                .filter(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
             match digits.parse::<f32>() {
                 Ok(value) => Ok(value),
-                Err(_) => Err(String::from("Error: the string contains non-numeric characters")),
+                Err(_) => Err(String::from(
+                    "Error: the string contains non-numeric characters",
+                )),
             }
-        }        
+        }
 
         //get into the LOOP to parse manifest content line by line
         for line in lines {
-            if get_url { //found the duration, then looking for url for the segment
-                if line.contains(".ts") { //check if the line contains the url
+            if get_url {
+                //found the duration, then looking for url for the segment
+                if line.contains(".ts") {
+                    //check if the line contains the url
                     //Save the duration and url into the segment vector.
-                    segments.push(MediaSegment { duration: duration_seg, url: line.to_string() });
-
+                    segments.push(MediaSegment {
+                        duration: duration_seg,
+                        url: line.to_string(),
+                    });
 
                     // tunr get_url flag OFF
                     get_url = false;
                     continue;
-                } else { // if the line does not contain the url, then get the next line, may need to handle the error here if the HLS content is missing ".ts"
+                } else {
+                    // if the line does not contain the url, then get the next line, may need to handle the error here if the HLS content is missing ".ts"
                     continue;
                 }
             }
@@ -154,9 +164,10 @@ impl MediaPlaylist {
             match line.to_string() {
                 s if s.contains("EXT-X-TARGETDURATION") => {
                     let target_duration_str = s
-                    .split(':')
-                    .last()
-                    .ok_or_else(|| anyhow!("EXT-X-TARGETDURATION: expecting digit")).unwrap();
+                        .split(':')
+                        .last()
+                        .ok_or_else(|| anyhow!("EXT-X-TARGETDURATION: expecting digit"))
+                        .unwrap();
 
                     //Save the target_duration
                     // by using library Duration and from_secs() function
@@ -165,40 +176,47 @@ impl MediaPlaylist {
                     // nanos: Nanoseconds
                     // Duration:  [secs, nanos]
                     match u64_from_string(target_duration_str) {
-                         Ok(num) => target_duration = Duration::from_secs(num),
-                         Err(err) => println!{"EXT-X-TARGETDURATION: expecting digit in HLS manifest after 'EXT-X-TARGETDURATION:' tag"},
+                        Ok(num) => target_duration = Duration::from_secs(num),
+                        Err(err) => {
+                            println! {"EXT-X-TARGETDURATION: expecting digit in HLS manifest after 'EXT-X-TARGETDURATION:' tag"}
+                        }
                     }
-
-                },
-                s if s.contains("#EXT-X-VERSION:") => { // HLS manifest version
+                }
+                s if s.contains("#EXT-X-VERSION:") => {
+                    // HLS manifest version
                     //#EXT-X-VERSION:4
                     // Try with string slice to get a string starting from the length of "EXT-X-VERSION:" until the end of the line
                     // convert the string to u64
-                    // If the .parse return an error, the ok() will set the version to None 
-                    version = line["#EXT-X-VERSION:".len()..]// get the value after the "#EXT-X-VERSION:"
-                        .parse()// convert to u64
+                    // If the .parse return an error, the ok() will set the version to None
+                    version = line["#EXT-X-VERSION:".len()..] // get the value after the "#EXT-X-VERSION:"
+                        .parse() // convert to u64
                         .ok(); // if error, set to None
-                },
-                s if s.contains("#EXTINF:") => { // segment duration
+                }
+                s if s.contains("#EXTINF:") => {
+                    // segment duration
                     // // ------parsing to get the durration by using string slice ------
                     // // #EXTINF:12.166,
-                    let duration_f32 = line["#EXTINF:".len()..]// string slide to get the value after the "12.166,"
-                        .splitn(2,',')// 12.166, => ["12.166", ""]
-                        .next().unwrap();// get the first part, "12.166"
+                    let duration_f32 = line["#EXTINF:".len()..] // string slide to get the value after the "12.166,"
+                        .splitn(2, ',') // 12.166, => ["12.166", ""]
+                        .next()
+                        .unwrap(); // get the first part, "12.166"
 
                     // Put the duration_f32 in the Duration struct{[secs, nanos]}
                     // by using the from_secs_f32() function because we need to preserve the nanos
                     match f32_from_string(duration_f32) {
-                            Ok(num) => duration_seg = Duration::from_secs_f32(num),
-                            Err(err) => println!{"EXTINF: expecting digit in HLS manifest after 'EXTINF:' tag"},
+                        Ok(num) => duration_seg = Duration::from_secs_f32(num),
+                        Err(err) => {
+                            println! {"EXTINF: expecting digit in HLS manifest after 'EXTINF:' tag"}
+                        }
                     }
-   
+
                     // need to get the url of the segment in the next two lines, so set get_url to true
                     // turn get_url flag ON
                     get_url = true;
-               },
-               s if s.contains("#EXT-X-DISCONTINUITY") || s.contains("#EXT-X-ENDLIST") => { // FOUND the end of the playlist
-                    // IF found the EXT-X-DISCONTINUITY tag, 
+                }
+                s if s.contains("#EXT-X-DISCONTINUITY") || s.contains("#EXT-X-ENDLIST") => {
+                    // FOUND the end of the playlist
+                    // IF found the EXT-X-DISCONTINUITY tag,
                     //  - Clone segments in MediaPlayList ---> discontinuity_segments, from the previous tag position until the end
                     //  - Calculate the sum of the duration of the segments
                     //  - Save the sum
@@ -213,25 +231,28 @@ impl MediaPlaylist {
                     // Create a new vector to store the segments of the discontinuity
                     let mut discontinuity_segments = Vec::new();
 
-                    // Loop through the 'segments' of 'MediaPlaylist sctructure' and clone the segments from the start_discontinuity_segment until the end of the segments 
+                    // Loop through the 'segments' of 'MediaPlaylist sctructure' and clone the segments from the start_discontinuity_segment until the end of the segments
                     for segment in segments.iter().skip(start_discontinuity_segment) {
-
                         // Clone the segment ---> push to discontinuity_segments
                         discontinuity_segments.push(segment.clone());
 
-                        // Get the value from segment duration 
+                        // Get the value from segment duration
                         // read the segment.duration as the milliseconds because, need to sum in millisecondsl
                         let this_segment_duration = segment.duration.as_millis();
 
                         // Then sum
                         // sum_discontinuity_duration += Duration::from_millis(this_segment_duration);
                         // When doing the sum, need to read in milliseconds, so use the as_millis() to get the milliseconds
-                        sum_discontinuity_duration += Duration::from_millis(this_segment_duration.try_into().unwrap());
+                        sum_discontinuity_duration +=
+                            Duration::from_millis(this_segment_duration.try_into().unwrap());
                     }
                     // ["sum_discontinuity_duration", [["discontinuity segments"],...] ---PUSH to---> MediaPlaylist structure
-                    discontinuity.push(DiscontinuitySegment { discontinuity_duration: sum_discontinuity_duration, discontinuity_segments });
+                    discontinuity.push(DiscontinuitySegment {
+                        discontinuity_duration: sum_discontinuity_duration,
+                        discontinuity_segments,
+                    });
 
-                    // keep track of the start index for the next discontinuity 
+                    // keep track of the start index for the next discontinuity
                     start_discontinuity_segment = segments.len();
 
                     // Reset the sum
@@ -241,8 +262,9 @@ impl MediaPlaylist {
                         // set the ended to true
                         ended = true;
                     }
-                },
-               _ => { // do nothing
+                }
+                _ => {
+                    // do nothing
                     continue;
                 }
             }
@@ -254,7 +276,13 @@ impl MediaPlaylist {
         // return the MediaPlaylist with the values
         // { ended: bool, segments: Vec<MediaSegment>, target_duration: Duration, version: u64}
         // put in Ok() to return the Result<Self>
-        Ok(MediaPlaylist { ended, segments, target_duration, version, discontinuity })
+        Ok(MediaPlaylist {
+            ended,
+            segments,
+            target_duration,
+            version,
+            discontinuity,
+        })
     }
 }
 
@@ -334,7 +362,7 @@ mod tests {
             assert!(playlist.ended);
         }
 
-         #[test]
+        #[test]
         fn parses_segments() {
             let playlist = big_buck_bunny();
             let expected = vec![
@@ -445,11 +473,19 @@ mod tests {
             // [ [discontinuity_duration=34.375, [ [Duration, string], [Duration, string], [Duration, string] ] ],
             // [ [discontinuity_duration=25.458, [ [Duration, string], [Duration, string], [Duration, string] ] ],
             // [ [discontinuity_duration=41.126, [ [Duration, string], [Duration, string], [Duration, string] ] ],
-            for (outter_actual, outter_expected) in playlist.discontinuity.into_iter().zip(expected) {
+            for (outter_actual, outter_expected) in playlist.discontinuity.into_iter().zip(expected)
+            {
                 // compare the discontinuity_duration
-                assert_eq!(outter_actual.discontinuity_duration, outter_expected.discontinuity_duration);
+                assert_eq!(
+                    outter_actual.discontinuity_duration,
+                    outter_expected.discontinuity_duration
+                );
                 // [Duration, string], [Duration, string], [Duration, string]...],
-                for (inner_actual, inner_expected) in outter_actual.discontinuity_segments.into_iter().zip(outter_expected.discontinuity_segments) {
+                for (inner_actual, inner_expected) in outter_actual
+                    .discontinuity_segments
+                    .into_iter()
+                    .zip(outter_expected.discontinuity_segments)
+                {
                     assert_eq!(inner_actual, inner_expected);
                 }
             }
